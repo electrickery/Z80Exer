@@ -8,7 +8,7 @@ At one time David Mutimer became interested and added the option to control the 
 
 Originally I used a experiment print between the Arduino Mega 2560, but with the TRS80 bus added this would get too complex, so in 2020 I created a shield, and included a connector for the TRS-80 connector to make it more versatile. The code was somewhat more optimized.
 
-[Z80 exer shields; prototype and first PBC version](https://github.com/electrickery/Z80Exer/shields.jpg)
+[Z80 exer shields; prototype and first PBC version](shields.jpg)
 
 Now the versions I still had in .tgz files are uploaded here in github, and the work of David Mutimer is in a separate branch DMutimer. It should be a clean merge.
 
