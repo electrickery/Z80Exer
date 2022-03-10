@@ -24,7 +24,7 @@ bool refreshMode = 0;
 
 void setup() {
   Serial.begin(9600);
-  Serial.println("Z80exer v0.1");
+  Serial.println("Z80exer v0.2");
   
   pinMode(LED, OUTPUT);
   
@@ -211,16 +211,17 @@ void dumpMemory() {
     for (i = startAddress; i < endAddress; i++) {
       positionOnLine = i & 0x0F;
       if (positionOnLine == 0) {
-        printWord(i);
+        printWord(i);   // Address at start of line
         Serial.print(": ");
       }
       data = readByte(i);
-      printByte(data); 
+      printByte(data);   // actual value in hex
+      // fill an array with the ASCII part of the line
       asChars[positionOnLine] = (data >= ' ' && data <= '~') ? data : '.';
       if ((i & 0x03) == 0x03) Serial.print(" ");
       if ((i & 0x0F) == 0x0F) {
         Serial.print (" ");
-        printString(asCharsP);
+        printString(asCharsP); // print the ASCII part
         Serial.println("");
       }
     }
@@ -240,10 +241,12 @@ unsigned int readByte(unsigned int address) {
   unsigned int addressLSB = address & 0xFF;
   unsigned int addressMSB = address >> 8;
   dataBusReadMode();
+  PORTL = 0xFF; // enable pull ups
   PORTA = addressLSB;
   PORTC = addressMSB;
   digitalWrite(Z80MREQ, LOW);
   digitalWrite(Z80RD,   LOW);
+  delayMicroseconds(10);
   data = PINL;
   digitalWrite(Z80RD,   HIGH);
   digitalWrite(Z80MREQ, HIGH); 
@@ -255,11 +258,13 @@ unsigned int fetchByte(unsigned int address) {
   unsigned int addressLSB = address & 0xFF;
   unsigned int addressMSB = address >> 8;
   dataBusReadMode();
+  PORTL = 0xFF; // enable pull ups
   PORTA = addressLSB;
   PORTC = addressMSB;
   digitalWrite(Z80M1  , LOW);
   digitalWrite(Z80MREQ, LOW);
   digitalWrite(Z80RD,   LOW);
+  delayMicroseconds(10);
   data = PINL;
   digitalWrite(Z80RD,   HIGH);
   digitalWrite(Z80MREQ, HIGH); 
@@ -284,10 +289,12 @@ unsigned int inputByte(unsigned int address) {
   unsigned int addressLSB = address & 0xFF;
   unsigned int addressMSB = address >> 8;
   dataBusReadMode();
+  PORTL = 0xFF; // enable pull ups
   PORTA = addressLSB;
   PORTC = addressMSB;
   digitalWrite(Z80IORQ, LOW);
   digitalWrite(Z80RD,   LOW);
+  delayMicroseconds(10);
   data = PINL;
   digitalWrite(Z80RD,   HIGH);
   digitalWrite(Z80IORQ, HIGH); 
