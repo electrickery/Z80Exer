@@ -13,3 +13,25 @@ Originally I used a experiment print between the Arduino Mega 2560, but with the
 Now the versions I still had in .tgz files are uploaded here in github, and the work of David Mutimer is in a separate branch DMutimer. It should be a clean merge.
 
 
+Z80exer command set:
+		-- Z80 exerciser 0.5beta command set --
+		Aaaaa          - set address bus to value aaaa
+		Bpp or B#ss    - blink pin p (in hex) or symbol: A0-AF,D0-D7,RD,WR.MQ,IQ,M1,RF,HT,BK
+		D[ssss[-eeee]|+] - Dump memory from ssss to eeee (default 256 bytes)
+		H              - This help text
+		Issss-eeee     - Generate hex intel data records
+		MRaaaa[+]      - Read memory address aaaa, optionally repeating
+		MWaaaa vv[+]   - Write vv to address aaaa, optionally repeating
+		PRaa[+]        - Read port address [aa]aa, optionally repeating
+		PWaa:vv[+]     - Write vv to address [aa]aa, optionally repeating
+		R[+|-]         - Refresh on/off
+		Qn             - Repeat rate; 1, 2, 4, 8, 16, ..., 32678 ms (n=0-9,A-F)
+		Sssss-eeee:vv  - fill a memory range with a value
+		Tp             - exercise port p
+		Ussss-eeee     - test RAM range (walking 1s)
+		V              - view data bus, pins INT, NMI, WAIT, BUSRQ, RESET
+		Wpp v or W#ss v - Write pin (in hex) or symbol: A0-AF,D0-D7,RD,WR.MQ,IQ,M1,RF,HT,BK; values 0, 1
+		?              - This help text
+		
+
+
