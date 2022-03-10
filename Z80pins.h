@@ -21,7 +21,7 @@
 #define Z80A15 30 // AF
 
 // Port L 49 - 42
-#define Z80D0  48 // D0
+#define Z80D0  49 // D0
 #define Z80D1  48
 #define Z80D2  47
 #define Z80D3  46

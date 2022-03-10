@@ -24,7 +24,7 @@ bool refreshMode = 0;
 
 void setup() {
   Serial.begin(9600);
-  Serial.println("Z80exer v0.2");
+  Serial.println("Z80exer v0.3");
   
   pinMode(LED, OUTPUT);
   
@@ -55,7 +55,7 @@ void loop() {
   byte refreshAddress = 0;
   commandCollector();
   if (refreshMode) {
-    refreshByte(refreshAddress);
+    refreshRow(refreshAddress);
     refreshAddress = 0x7F & ++refreshAddress;   
   }
 }  
@@ -110,6 +110,11 @@ void commandInterpreter() {
 //      Serial.println("F?:");
       usage();
       break; 
+    case 'I':
+    case 'i':
+      generateDataRecords();
+      generateEndRecord();
+      break;
     case 'M':  // memory address read/write
     case 'm':
       readWriteMemory();
@@ -139,6 +144,10 @@ void commandInterpreter() {
     case 'T':  // test ports
     case 't':
       portTest(serialBuffer[1]);
+      break;
+    case 'U':
+    case 'u':
+      testRAM();
       break;
     case 'V':
     case 'v':
@@ -272,16 +281,20 @@ unsigned int fetchByte(unsigned int address) {
   return data; 
 }
 
-void refreshByte(unsigned int address) {
+void refreshRow(unsigned int address) {
 //  unsigned int data = 0;
   unsigned int addressLSB = address & 0xFF;
   dataBusReadMode();
   PORTA = addressLSB;
   digitalWrite(Z80RFSH, LOW);
+  digitalWrite(Z80RD,   LOW);
+  delayMicroseconds(5);
   digitalWrite(Z80MREQ, LOW);
-//  delay(1);
+  delayMicroseconds(5);
   digitalWrite(Z80MREQ, HIGH);  
+  delayMicroseconds(5);
   digitalWrite(Z80RFSH, HIGH);
+  digitalWrite(Z80RD,   HIGH);
 }
 
 unsigned int inputByte(unsigned int address) {
@@ -311,7 +324,7 @@ void writeByte(unsigned int address, unsigned int value) {
   PORTL = value;
   digitalWrite(Z80MREQ, LOW);
   digitalWrite(Z80WR,   LOW);
-//  delay(1);
+  delayMicroseconds(10);
   digitalWrite(Z80WR,   HIGH);
   digitalWrite(Z80MREQ, HIGH);
   dataBusReadMode();
@@ -326,7 +339,7 @@ void outputByte(unsigned int address, unsigned int value) {
   PORTL = value;
   digitalWrite(Z80IORQ, LOW);
   digitalWrite(Z80WR,   LOW);
-//  delay(1);
+  delayMicroseconds(10);
   digitalWrite(Z80WR,   HIGH);
   digitalWrite(Z80IORQ, HIGH);
   dataBusReadMode();
@@ -353,10 +366,11 @@ void dataBusWriteMode() {
 }
 
 void usage() {
-  Serial.println("-- Z80 exerciser 0.1 command set --");
+  Serial.println("-- Z80 exerciser 0.3 command set --");
   Serial.println("Bpp or B#ss    - blink pin p (in hex) or symbol: A0-AF,D0-D7,RD,WR.MQ,IQ,M1,RF,HT,BK");
   Serial.println("D[ssss[-eeee]|+] - Dump memory from ssss to eeee (default 256 bytes)");
   Serial.println("H              - This help text");
+  Serial.println("Issss-eeee     - Generate hex intel data records");
   Serial.println("MRaaaa[+]      - Read memory address aaaa, optionally repeating");
   Serial.println("MWaaaa vv[+]   - Write vv to address aaaa, optionally repeating");
   Serial.println("PRaa[+]        - Read port address [aa]aa, optionally repeating");
@@ -365,6 +379,7 @@ void usage() {
   Serial.println("Qn             - Repeat rate; 1, 2, 4, 8, 16, ..., 32678 ms (n=0-9,A-F)");
   Serial.println("Sssss-eeee:vv  - fill a memory range with a value");
   Serial.println("Tp             - exercise port p");
+  Serial.println("Ussss-eeee     - test RAM range (walking 1s)");
   Serial.println("V              - view data bus, pins INT, NMI, WAIT, BUSRQ, RESET");
   Serial.println("Wpp v or W#ss v - Write pin (in hex) or symbol: A0-AF,D0-D7,RD,WR.MQ,IQ,M1,RF,HT,BK; values 0, 1");
   Serial.println("?              - This help text"); 
@@ -512,6 +527,8 @@ void setValue() {
     writeByte(i, value);
   }
   dataBusReadMode();
+  Serial.println("set RAM done.");
+
 }
 
 void viewPorts() {
@@ -743,3 +760,131 @@ void setRepeatRate() {
     Serial.println("not supported");
   }
 }
+
+byte testRAM() {
+  unsigned int startAddress;
+  unsigned int endAddress;
+  unsigned char value;
+  // Ussss eeee
+  startAddress  = getNibble(serialBuffer[1]) * (1 << 12);
+  startAddress += getNibble(serialBuffer[2]) * (1 << 8);
+  startAddress += getNibble(serialBuffer[3]) * (1 << 4);
+  startAddress += getNibble(serialBuffer[4]);
+  endAddress  = getNibble(serialBuffer[6]) * (1 << 12);
+  endAddress += getNibble(serialBuffer[7]) * (1 << 8);
+  endAddress += getNibble(serialBuffer[8]) * (1 << 4);
+  endAddress += getNibble(serialBuffer[9]);
+  Serial.print("Testing RAM range ");
+  Serial.print(startAddress, HEX);
+  Serial.print(" - ");
+  Serial.println(endAddress, HEX);
+  dataBusReadMode();
+  unsigned int i;
+  byte result;
+  for (i = startAddress; i <= endAddress; i++) {
+    result = memTestDataBus(i);
+    if (result) {
+      Serial.print("Failed with pattern ");
+      printBin(result);
+      Serial.print(" at ");
+      Serial.println(i, HEX);
+    }
+    if (stopIt()) break;
+  }
+  dataBusReadMode();
+  Serial.println("RAM test done.");
+}
+
+
+/**********************************************************************
+ *
+ * Function:    memTestDataBus()
+ *
+ * Description: Test the data bus wiring in a memory region by
+ *              performing a walking 1's test at a fixed address
+ *              within that region.  The address (and hence the
+ *              memory region) is selected by the caller.
+ *
+ * Notes:       
+ *
+ * Returns:     0 if the test succeeds.  
+ *              A non-zero result is the first pattern that failed.
+ *
+ * http://www.barrgroup.com/Embedded-Systems/How-To/Memory-Test-Suite-C
+ *
+ **********************************************************************/
+byte memTestDataBus(uint16_t address)
+{
+    byte pattern;
+
+
+    /*
+     * Perform a walking 1's test at the given address.
+     */
+    for (pattern = 1; pattern != 0; pattern <<= 1)
+    {
+        /*
+         * Write the test pattern.
+         */
+        writeByte(address, pattern);
+
+        /*
+         * Read it back (immediately is okay for this test).
+         */
+        if (readByte(address) != pattern) 
+        {
+            return (pattern);
+        }
+    }
+    return (0);
+
+}   /* memTestDataBus() */
+
+void generateDataRecords() {
+  unsigned int startAddress;
+  unsigned int endAddress;
+  startAddress  = getNibble(serialBuffer[1]) * (1 << 12);
+  startAddress += getNibble(serialBuffer[2]) * (1 << 8);
+  startAddress += getNibble(serialBuffer[3]) * (1 << 4);
+  startAddress += getNibble(serialBuffer[4]);
+  endAddress  = getNibble(serialBuffer[6]) * (1 << 12);
+  endAddress += getNibble(serialBuffer[7]) * (1 << 8);
+  endAddress += getNibble(serialBuffer[8]) * (1 << 4);
+  endAddress += getNibble(serialBuffer[9]);
+  printWord(startAddress);
+  Serial.print("-");
+  printWord(endAddress);
+  Serial.println();
+
+  unsigned int i, j;
+  unsigned char addressMSB, addressLSB, data;
+  unsigned char sumCheckCount = 0;
+
+  dataBusReadMode();  
+  for (i = startAddress; i < endAddress; i += RECORDSIZE) {
+    sumCheckCount = 0;
+    Serial.print(":");
+    printByte(RECORDSIZE);  
+    sumCheckCount -= RECORDSIZE;
+    addressMSB = i >> 8;
+    addressLSB = i & 0xFF;
+    printByte(addressMSB);
+    printByte(addressLSB);
+    sumCheckCount -= addressMSB;
+    sumCheckCount -= addressLSB;
+    printByte(DATARECORDTYPE);
+    sumCheckCount -= DATARECORDTYPE;
+    for (j = 0; j < RECORDSIZE; j++) {
+      data = readByte(i + j);
+      printByte(data);
+      sumCheckCount -= data;
+    }
+    printByte(sumCheckCount);
+    Serial.println();
+  }
+}
+
+void generateEndRecord() {
+  Serial.println(":00000001FF");
+}
+
