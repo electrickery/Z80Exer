@@ -1,0 +1,14 @@
+
+
+#define T_DISP_START 0x3C00
+#define T_DISP_SIZE  0x0400
+
+#define T_KEYB_ROW1 0x3801
+#define T_KEYB_ROW2 0x3802
+#define T_KEYB_ROW3 0x3804
+#define T_KEYB_ROW4 0x3808
+#define T_KEYB_ROW5 0x3810
+#define T_KEYB_ROW6 0x3820
+#define T_KEYB_ROW7 0x3840
+#define T_KEYB_ROW8 0x3880
+

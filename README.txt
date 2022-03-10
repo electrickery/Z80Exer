@@ -1,4 +1,9 @@
-README.txt file for Z80exer 0.3
+README.txt file for Z80exer 0.4
+
+Changed for 0.4:
+- Moved the T command (exercise port) to X.
+- Added two TRS80 specific commands: TD for display memory testing and
+  TK for keyboard testing.
 
 Changed for 0.3:
 - Fixed hardware wiring issue with grounding. 
