@@ -47,3 +47,16 @@
 #define Z80BUSRQ 60 // A6 // BQ
 #define Z80RESET 61 // A7 // RT
 
+// Extra pins for expansion header
+#define EXPMRD   2
+#define EXPMWR   3
+#define EXPRAS   4
+#define EXPMUX   5
+#define EXPCAS   6
+#define EXPIN    7
+#define EXPOUT   8
+#define EXPIAK 9
+#define EXPDETECT 10
+
+
+

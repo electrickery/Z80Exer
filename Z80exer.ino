@@ -2,9 +2,13 @@
 Z80emu - Z80 pin exorsizer
 */
 
-#include "Z80pins.h"
-#include "TRS80maps.h"
+// Modified by David Mutimer for the Z80 & TRS-80 model 1 shield
 
+#include "Z80pins.h"
+#include "TRS80data.h"
+
+#define READ_DELAY            10
+#define WRITE_DELAY           10
 #define SERIALBUFSIZE         50
 char serialBuffer[SERIALBUFSIZE];
 byte setBufPointer = 0;
@@ -19,40 +23,73 @@ uint16_t repeatRate = 1 < 9;
 unsigned int lastEndAddress = 0;
 
 unsigned int addressOffset = 0;
-bool refreshMode = 0;
+bool refreshMode = 1;
+unsigned int refreshAddress = 0;
+const char* VERSION  = "v0.7";
 
 // core routines
 
 void setup() {
   Serial.begin(9600);
-  Serial.println("Z80exer v0.5beta");
+  Serial.print("Z80 & TRS-80 Model 1 exerciser ");
+  Serial.println(VERSION);
   
   pinMode(LED, OUTPUT);
-  
-  pinMode(Z80INT,   INPUT_PULLUP);
-  pinMode(Z80NMI,   INPUT_PULLUP);
-  pinMode(Z80WAIT,  INPUT_PULLUP);
-  pinMode(Z80BUSRQ, INPUT_PULLUP);
-  pinMode(Z80RESET, INPUT_PULLUP); 
-  
+  pinMode(Z80INT,   INPUT);
+  pinMode(Z80NMI,   INPUT);
+  pinMode(Z80WAIT,  INPUT);
+  pinMode(Z80BUSRQ, INPUT);
+  pinMode(Z80RESET, INPUT); 
+  pinMode(EXPDETECT, INPUT); 
+  digitalWrite(Z80INT,   HIGH);
+  digitalWrite(Z80NMI,   HIGH);
+  digitalWrite(Z80WAIT,  HIGH);
+  digitalWrite(Z80BUSRQ, HIGH);
+  digitalWrite(Z80RESET, HIGH);
+  digitalWrite(EXPDETECT,HIGH);
+
+  pinMode(EXPMRD, OUTPUT); 
+  pinMode(EXPMWR, OUTPUT); 
+  pinMode(EXPRAS, OUTPUT); 
+  pinMode(EXPMUX, OUTPUT); 
+  pinMode(EXPCAS, OUTPUT); 
+  pinMode(EXPIN, OUTPUT); 
+  pinMode(EXPOUT, OUTPUT); 
+  digitalWrite(EXPMRD ,HIGH);
+  digitalWrite(EXPMWR ,HIGH);
+  digitalWrite(EXPRAS ,HIGH);
+  digitalWrite(EXPMUX ,HIGH);
+  digitalWrite(EXPCAS ,HIGH);
+  digitalWrite(EXPIN ,HIGH);
+  digitalWrite(EXPOUT ,HIGH);
+  digitalWrite(EXPIAK ,HIGH);
+
   DDRA  = 0XFF; // address LSB output
   DDRC  = 0XFF; // address MSB output
   PORTK = 0xFF; // control out bits high
   DDRK  = 0XFF; // control out bits output
   DDRL  = 0x00; // data bus input
   PORTL = 0xFF; // data bus pull ups
+
   
 //  onlineReadMode();
-  delay(1000);  
+
+  delay(250);  
+  if (digitalRead(EXPDETECT)) {
+    Serial.println("Using CPU interface, please unplug the expansion header cable");
+  }
+  else {
+    Serial.println("Using expansion interface, please unplug the CPU header cable");
+  }
+  delay(500);  
 }
 
 
 void loop() {
-  byte refreshAddress = 0;
   commandCollector();
   if (refreshMode) {
-    refreshRow(refreshAddress);
-    refreshAddress = 0x7F & ++refreshAddress;   
+    delay(20);
+    refreshRow();
   }
 }  
  
@@ -100,6 +137,10 @@ void commandInterpreter() {
     case 'b':
       blinkPin();
       break;
+    case 'C':
+    case 'c':
+      calcChecksum();
+      break;
     case 'D':  // dump memory
     case 'd':
       dumpMemory();
@@ -131,19 +172,25 @@ void commandInterpreter() {
     case 'r':
       if (serialBuffer[1] == '+') {
         refreshMode = 1;
-        Serial.println("refresh on");
-      } else {
+      } else if (serialBuffer[1] == '-') {
         refreshMode = 0;
+      }
+      if (refreshMode) {
+        Serial.println("refresh on");
+      }
+      else {
         Serial.println("refresh off");
       }
+      
+
       break;
     case 'S':
     case 's':
       setValue(); // fill memory range with a value
       break;
-    case 'T':  // test ports
+    case 'T':  // TRS-80 tests
     case 't':
-      portTest(serialBuffer[1]);
+      TRS80Test();
       break;
     case 'U':
     case 'u':
@@ -156,6 +203,10 @@ void commandInterpreter() {
     case 'W':
     case 'w':
       writePin();
+      break;
+    case 'X':  // test ports
+    case 'x':
+      portTest(serialBuffer[1]);
       break;
     default:
       Serial.print(bufByte);
@@ -174,41 +225,50 @@ int getNibble(unsigned char myChar) {
 }
 
 void dumpMemory() {
-  unsigned int startAddress;
-  unsigned int endAddress;
+  unsigned long startAddress;
+  unsigned long endAddress;
   bool repeatMode = 0;
   if (setBufPointer == 1 ) {
     startAddress = lastEndAddress;
+    endAddress   = startAddress + DUMPPAGE;
     lastEndAddress = endAddress;
-    endAddress = startAddress + DUMPPAGE;
   } else if (setBufPointer == 2 && serialBuffer[1] == '+') {
     startAddress = lastEndAddress - DUMPPAGE;
+    endAddress   = startAddress + DUMPPAGE;
     lastEndAddress = endAddress;
-    endAddress = startAddress + DUMPPAGE;
     repeatMode = 1;
   } else if (setBufPointer == 5) {
-    startAddress = get16BitValue(1);
+    startAddress  = getNibble(serialBuffer[1]) * (1 << 12);
+    startAddress += getNibble(serialBuffer[2]) * (1 << 8);
+    startAddress += getNibble(serialBuffer[3]) * (1 << 4);
+    startAddress += getNibble(serialBuffer[4]);
+    endAddress   = startAddress + DUMPPAGE;
     lastEndAddress = endAddress;
-    endAddress = startAddress + DUMPPAGE;
   } else if (setBufPointer == 10) {
-    startAddress = get16BitValue(1);
-    endAddress = get16BitValue(6);
+    startAddress  = getNibble(serialBuffer[1]) * (1 << 12);
+    startAddress += getNibble(serialBuffer[2]) * (1 << 8);
+    startAddress += getNibble(serialBuffer[3]) * (1 << 4);
+    startAddress += getNibble(serialBuffer[4]);
+    endAddress  = getNibble(serialBuffer[6]) * (1 << 12);
+    endAddress += getNibble(serialBuffer[7]) * (1 << 8);
+    endAddress += getNibble(serialBuffer[8]) * (1 << 4);
+    endAddress += getNibble(serialBuffer[9]);
     lastEndAddress = endAddress;
+    endAddress++;
   } else {
     Serial.println("unsupported"); 
-    return;
   }
   unsigned char asChars[17];
   unsigned char *asCharsP = &asChars[0];
   unsigned char positionOnLine;
   asChars[16] = 0;
   do {
-    // show range
     printWord(startAddress);
     Serial.print("-");
-    printWord(endAddress - 1);
+    printWord(endAddress-1);
     Serial.println();
-    unsigned int i, data;
+    unsigned long i;
+    unsigned int data;
     dataBusReadMode();
     for (i = startAddress; i < endAddress; i++) {
       positionOnLine = i & 0x0F;
@@ -246,12 +306,27 @@ unsigned int readByte(unsigned int address) {
   PORTL = 0xFF; // enable pull ups
   PORTA = addressLSB;
   PORTC = addressMSB;
-  digitalWrite(Z80MREQ, LOW);
-  digitalWrite(Z80RD,   LOW);
-  delayMicroseconds(10);
-  data = PINL;
-  digitalWrite(Z80RD,   HIGH);
-  digitalWrite(Z80MREQ, HIGH); 
+  if (digitalRead(EXPDETECT)) {
+    digitalWrite(Z80MREQ, LOW);
+    digitalWrite(Z80RD,   LOW);
+    delayMicroseconds(READ_DELAY);
+    data = PINL;
+    digitalWrite(Z80RD,   HIGH);
+    digitalWrite(Z80MREQ, HIGH); 
+  }
+  else {
+    digitalWrite(EXPRAS, LOW);
+    digitalWrite(EXPMRD, LOW);
+    digitalWrite(EXPMUX, LOW);
+    digitalWrite(EXPCAS, LOW);
+    delayMicroseconds(READ_DELAY);
+    data = PINL;
+    digitalWrite(EXPMRD, HIGH);
+    digitalWrite(EXPRAS, HIGH);
+    digitalWrite(EXPMUX, HIGH);
+    digitalWrite(EXPCAS, HIGH);
+  }
+  refreshRow();
   return data; 
 }
 
@@ -263,31 +338,48 @@ unsigned int fetchByte(unsigned int address) {
   PORTL = 0xFF; // enable pull ups
   PORTA = addressLSB;
   PORTC = addressMSB;
-  digitalWrite(Z80M1  , LOW);
-  digitalWrite(Z80MREQ, LOW);
-  digitalWrite(Z80RD,   LOW);
-  delayMicroseconds(10);
-  data = PINL;
-  digitalWrite(Z80RD,   HIGH);
-  digitalWrite(Z80MREQ, HIGH); 
-  digitalWrite(Z80M1  , HIGH);
+  if (digitalRead(EXPDETECT)) {
+    digitalWrite(Z80M1  , LOW);
+    digitalWrite(Z80MREQ, LOW);
+    digitalWrite(Z80RD,   LOW);
+    delayMicroseconds(READ_DELAY);
+    data = PINL;
+    digitalWrite(Z80RD,   HIGH);
+    digitalWrite(Z80MREQ, HIGH); 
+    digitalWrite(Z80M1  , HIGH);
+  }
+  else {
+   Serial.print ("*");
+    digitalWrite(EXPMRD, LOW);
+    digitalWrite(EXPRAS, LOW);
+    digitalWrite(EXPMUX, LOW);
+    digitalWrite(EXPCAS, LOW);
+    delayMicroseconds(READ_DELAY);
+    data = PINL;
+    digitalWrite(EXPMRD, HIGH);
+    digitalWrite(EXPRAS, HIGH);
+    digitalWrite(EXPMUX, HIGH);
+    digitalWrite(EXPCAS, HIGH);
+  }
+  refreshRow();
   return data; 
 }
 
-void refreshRow(unsigned int address) {
-//  unsigned int data = 0;
-  unsigned int addressLSB = address & 0xFF;
-  dataBusReadMode();
-  PORTA = addressLSB;
-  digitalWrite(Z80RFSH, LOW);
-  digitalWrite(Z80RD,   LOW);
-  delayMicroseconds(5);
-  digitalWrite(Z80MREQ, LOW);
-  delayMicroseconds(5);
-  digitalWrite(Z80MREQ, HIGH);  
-  delayMicroseconds(5);
-  digitalWrite(Z80RFSH, HIGH);
-  digitalWrite(Z80RD,   HIGH);
+void refreshRow() {
+  PORTA = refreshAddress & 0x7F;
+  if (digitalRead(EXPDETECT)) {
+    digitalWrite(Z80RFSH, LOW);
+    digitalWrite(Z80MREQ, LOW);
+    delayMicroseconds(READ_DELAY);
+    digitalWrite(Z80MREQ, HIGH);  
+    digitalWrite(Z80RFSH, HIGH);
+  }
+  else {
+    digitalWrite(EXPRAS, LOW);
+    delayMicroseconds(READ_DELAY);
+    digitalWrite(EXPRAS, HIGH);
+  }
+  refreshAddress++;
 }
 
 unsigned int inputByte(unsigned int address) {
@@ -298,14 +390,24 @@ unsigned int inputByte(unsigned int address) {
   PORTL = 0xFF; // enable pull ups
   PORTA = addressLSB;
   PORTC = addressMSB;
-  digitalWrite(Z80IORQ, LOW);
-  digitalWrite(Z80RD,   LOW);
-  delayMicroseconds(10);
-  data = PINL;
-  digitalWrite(Z80RD,   HIGH);
-  digitalWrite(Z80IORQ, HIGH); 
+  if (digitalRead(EXPDETECT)) {
+    digitalWrite(Z80IORQ, LOW);
+    digitalWrite(Z80RD,   LOW);
+    delayMicroseconds(READ_DELAY);
+    data = PINL;
+    digitalWrite(Z80RD,   HIGH);
+    digitalWrite(Z80IORQ, HIGH); 
+  }
+  else {
+    digitalWrite(EXPIN, LOW);
+    delayMicroseconds(READ_DELAY);
+    data = PINL;
+    digitalWrite(EXPIN, HIGH); 
+  }
+  refreshRow();
   return data; 
 }
+
 
 void writeByte(unsigned int address, unsigned int value) {
   unsigned int addressLSB = address & 0xFF;
@@ -314,12 +416,26 @@ void writeByte(unsigned int address, unsigned int value) {
   PORTA = addressLSB;
   PORTC = addressMSB;
   PORTL = value;
-  digitalWrite(Z80MREQ, LOW);
-  digitalWrite(Z80WR,   LOW);
-  delayMicroseconds(10);
-  digitalWrite(Z80WR,   HIGH);
-  digitalWrite(Z80MREQ, HIGH);
+  if (digitalRead(EXPDETECT)) {
+    digitalWrite(Z80MREQ, LOW);
+    digitalWrite(Z80WR,   LOW);
+    delayMicroseconds(WRITE_DELAY);
+    digitalWrite(Z80WR,   HIGH);
+    digitalWrite(Z80MREQ, HIGH);
+  }
+  else {
+    digitalWrite(EXPRAS, LOW);
+    digitalWrite(EXPMUX, LOW);
+    digitalWrite(EXPCAS, LOW);
+    digitalWrite(EXPMWR,   LOW);
+    delayMicroseconds(WRITE_DELAY);
+    digitalWrite(EXPMWR, HIGH);
+    digitalWrite(EXPRAS, HIGH);
+    digitalWrite(EXPMUX, HIGH);
+    digitalWrite(EXPCAS, HIGH);
+  }
   dataBusReadMode();
+  refreshRow();
 }
 
 void outputByte(unsigned int address, unsigned int value) {
@@ -329,12 +445,20 @@ void outputByte(unsigned int address, unsigned int value) {
   PORTA = addressLSB;
   PORTC = addressMSB;
   PORTL = value;
-  digitalWrite(Z80IORQ, LOW);
-  digitalWrite(Z80WR,   LOW);
-  delayMicroseconds(10);
-  digitalWrite(Z80WR,   HIGH);
-  digitalWrite(Z80IORQ, HIGH);
+  if (digitalRead(EXPDETECT)) {
+    digitalWrite(Z80IORQ, LOW);
+    digitalWrite(Z80WR,   LOW);
+    delayMicroseconds(WRITE_DELAY);
+    digitalWrite(Z80WR,   HIGH);
+    digitalWrite(Z80IORQ, HIGH);
+  }
+  else {
+    digitalWrite(EXPOUT,   LOW);
+    delayMicroseconds(WRITE_DELAY);
+    digitalWrite(EXPOUT, HIGH);
+  }
   dataBusReadMode();
+  refreshRow();
 }
 
 void printByte(unsigned char data) {
@@ -358,24 +482,33 @@ void dataBusWriteMode() {
 }
 
 void usage() {
-  Serial.println("-- Z80 exerciser 0.5beta command set --");
-  Serial.println("Aaaaa          - set address bus to value aaaa");
-  Serial.println("Bpp or B#ss    - blink pin p (in hex) or symbol: A0-AF,D0-D7,RD,WR.MQ,IQ,M1,RF,HT,BK");
+  Serial.print("-- Z80 exerciser ");
+  Serial.print(VERSION);
+  Serial.println(" command set --");
+  Serial.println("Aaaaa            - set address bus to value aaaa");
+  Serial.println("Bpp or B#ss      - blink pin p (in hex) or symbol: A0-AF,D0-D7,RD,WR.MQ,IQ,M1,RF,HT,BK");
+  Serial.println("                 - ( Model 1 expansion interface - MR, MW, IN, OT, RS, MX, CS and IA )");
+  Serial.println("Cssss-eeee       - Calculate checksum from ssss to eeee");
   Serial.println("D[ssss[-eeee]|+] - Dump memory from ssss to eeee (default 256 bytes)");
-  Serial.println("H              - This help text");
-  Serial.println("Issss-eeee     - Generate hex intel data records");
-  Serial.println("MRaaaa[+]      - Read memory address aaaa, optionally repeating");
-  Serial.println("MWaaaa vv[+]   - Write vv to address aaaa, optionally repeating");
-  Serial.println("PRaa[+]        - Read port address [aa]aa, optionally repeating");
-  Serial.println("PWaa:vv[+]     - Write vv to address [aa]aa, optionally repeating");
-  Serial.println("R[+|-]         - Refresh on/off");
-  Serial.println("Qn             - Repeat rate; 1, 2, 4, 8, 16, ..., 32678 ms (n=0-9,A-F)");
-  Serial.println("Sssss-eeee:vv  - fill a memory range with a value");
-  Serial.println("Tp             - exercise port p");
-  Serial.println("Ussss-eeee     - test RAM range (walking 1s)");
-  Serial.println("V              - view data bus, pins INT, NMI, WAIT, BUSRQ, RESET");
-  Serial.println("Wpp v or W#ss v - Write pin (in hex) or symbol: A0-AF,D0-D7,RD,WR.MQ,IQ,M1,RF,HT,BK; values 0, 1");
-  Serial.println("?              - This help text"); 
+  Serial.println("H                - This help text");
+  Serial.println("Issss-eeee       - Generate hex intel data records");
+  Serial.println("MRaaaa[+]        - Read memory address aaaa, optionally repeating");
+  Serial.println("MWaaaa vv[+]     - Write vv to address aaaa, optionally repeating");
+  Serial.println("PRaa[+]          - Read port address [aa]aa, optionally repeating");
+  Serial.println("PWaa:vv[+]       - Write vv to address [aa]aa, optionally repeating");
+  Serial.println("R[+|-]           - Refresh on/off");
+  Serial.println("Qn               - Repeat rate; 1, 2, 4, 8, 16, ..., 32678 ms (n=0-9,A-F)");
+  Serial.println("Sssss-eeee:vv    - fill a memory range with a value");
+  Serial.println("TC               - Calculate TRS-80 ROM checksums");
+  Serial.println("TD               - Exercise TRS-80 display memory (No lower case mod)");
+  Serial.println("TL               - Exercise TRS-80 display memory (With lower case mod)");
+  Serial.println("TK               - Reads TRS-80 keyboard matrix");
+  Serial.println("Ussss-eeee       - test RAM range (walking 1s)");
+  Serial.println("V                - view data bus, pins INT, NMI, WAIT, BUSRQ, RESET");
+  Serial.println("Wpp v or W#ss v  - Write pin (in hex) or symbol: A0-AF,D0-D7,RD,WR.MQ,IQ,M1,RF,HT,BK; values 0, 1");
+  Serial.println("                 - ( Model 1 expansion interface - MR, MW, IN, OT, RS, MX, CS and IA )");
+  Serial.println("Xp               - exercise port p");
+  Serial.println("?                - This help text"); 
 }
 
 void portTest(byte port) {
@@ -471,13 +604,32 @@ void portTest(byte port) {
    }
 }
 
+int getPinMode(uint8_t pin)
+{
+  if (pin >= NUM_DIGITAL_PINS) return (-1);
+
+  uint8_t bit = digitalPinToBitMask(pin);
+  uint8_t port = digitalPinToPort(pin);
+  volatile uint8_t *reg = portModeRegister(port);
+  if (*reg & bit) return (OUTPUT);
+
+  volatile uint8_t *out = portOutputRegister(port);
+  return ((*out & bit) ? INPUT_PULLUP : INPUT);
+}
+
 void blinkPin() {
   int pin;
+  int mode;
+  int value;
+   
   if (serialBuffer[1] == '#') {
     pin = getPinBySymbol();    
   } else {
-    pin = get8BitValue(1);
+    pin  = getNibble(serialBuffer[1]) * (1 << 4);
+    pin += getNibble(serialBuffer[2]);
   }
+  mode = getPinMode(pin);
+  value = digitalRead(pin);
   Serial.print("Pin: ");
   Serial.println(pin, DEC);  
   pinMode(pin, OUTPUT);
@@ -487,9 +639,36 @@ void blinkPin() {
     if (Serial.available() > 0) {
         clearSerialBuffer();
         setBufPointer = 0;
+        pinMode(pin,mode);
+        if(mode==OUTPUT)
+          digitalWrite(pin, value);
         return;
     }
   }
+}
+
+void calcChecksum() {
+  unsigned int startAddress;
+  unsigned int endAddress;
+  unsigned char value;
+  // Cssss eeee
+  startAddress  = getNibble(serialBuffer[1]) * (1 << 12);
+  startAddress += getNibble(serialBuffer[2]) * (1 << 8);
+  startAddress += getNibble(serialBuffer[3]) * (1 << 4);
+  startAddress += getNibble(serialBuffer[4]);
+  endAddress  = getNibble(serialBuffer[6]) * (1 << 12);
+  endAddress += getNibble(serialBuffer[7]) * (1 << 8);
+  endAddress += getNibble(serialBuffer[8]) * (1 << 4);
+  endAddress += getNibble(serialBuffer[9]);
+
+  Serial.print("Checksum block ");
+  Serial.print(startAddress, HEX);
+  Serial.print("h - ");
+  Serial.print(endAddress, HEX);
+  Serial.print("h : ");
+  Serial.print(blockChecksum(startAddress,endAddress), HEX);
+  Serial.println("h");
+  dataBusReadMode();
 }
 
 void setValue() {
@@ -497,9 +676,16 @@ void setValue() {
   unsigned int endAddress;
   unsigned char value;
   // Sssss eeee vv
-  startAddress = get16BitValue(1);
-  endAddress   = get16BitValue(6);
-  value  = get8BitValue(11);
+  startAddress  = getNibble(serialBuffer[1]) * (1 << 12);
+  startAddress += getNibble(serialBuffer[2]) * (1 << 8);
+  startAddress += getNibble(serialBuffer[3]) * (1 << 4);
+  startAddress += getNibble(serialBuffer[4]);
+  endAddress  = getNibble(serialBuffer[6]) * (1 << 12);
+  endAddress += getNibble(serialBuffer[7]) * (1 << 8);
+  endAddress += getNibble(serialBuffer[8]) * (1 << 4);
+  endAddress += getNibble(serialBuffer[9]);
+  value  = getNibble(serialBuffer[11]) * (1 << 4);
+  value += getNibble(serialBuffer[12]);
   Serial.print("Writing ");
   Serial.print(value, HEX);
   Serial.print(" to range ");
@@ -507,7 +693,7 @@ void setValue() {
   Serial.print(" - ");
   Serial.println(endAddress, HEX);
   dataBusWriteMode();
-  unsigned int i;
+  unsigned long i;
   for (i = startAddress; i <= endAddress; i++) {
     writeByte(i, value);
   }
@@ -571,6 +757,7 @@ void writePin() {
 
 unsigned char getPinBySymbol() {
   // B[0-F][0-F], B#A[0-F], B#D[0-7], B#RW, B#RD, B#MQ, B#IQ, B#MI, B#RF, B#HT, B#BK
+  // B#MRD B#MWR B#IN B#OUT B#RAS B#MUX B#CAS B#IAK
   if (serialBuffer[2] == 'A') {
     if(serialBuffer[3] <= '7') {
       return serialBuffer[3] - '0' + Z80A0;
@@ -598,6 +785,22 @@ unsigned char getPinBySymbol() {
     return Z80HALT;
   } else if (serialBuffer[2] == 'B' && serialBuffer[3] == 'K') {
     return Z80BUSAK;
+  } else if (serialBuffer[2] == 'M' && serialBuffer[3] == 'R') {
+    return EXPMRD;
+  } else if (serialBuffer[2] == 'M' && serialBuffer[3] == 'W') {
+    return EXPMWR;
+  } else if (serialBuffer[2] == 'I' && serialBuffer[3] == 'N') {
+    return EXPIN;
+  } else if (serialBuffer[2] == 'O' && serialBuffer[3] == 'T') {
+    return EXPOUT;
+  } else if (serialBuffer[2] == 'R' && serialBuffer[3] == 'S') {
+    return EXPRAS;
+  } else if (serialBuffer[2] == 'M' && serialBuffer[3] == 'X') {
+    return EXPMUX;
+  } else if (serialBuffer[2] == 'C' && serialBuffer[3] == 'S') {
+    return EXPCAS;
+  } else if (serialBuffer[2] == 'I' && serialBuffer[3] == 'A') {
+    return EXPIAK;
   } else {
     Serial.println("unknown symbol");
   }
@@ -628,7 +831,10 @@ void readWriteMemory() {
   // MRaaaa[+], MWaaaa vv[+]
   uint16_t address;
   bool repeatMode = 0;
-  address  = get16BitValue(2);
+  address  = getNibble(serialBuffer[2]) * (1 << 12);
+  address += getNibble(serialBuffer[3]) * (1 << 8);
+  address += getNibble(serialBuffer[4]) * (1 << 4);
+  address += getNibble(serialBuffer[5]);
   if (serialBuffer[1] == 'R' || serialBuffer[1] == 'r') {
     if (setBufPointer == 7 && serialBuffer[6] == '+') {
       repeatMode = 1;
@@ -646,7 +852,8 @@ void readWriteMemory() {
     } while (repeatMode);
   } else if (serialBuffer[1] == 'W' || serialBuffer[1] == 'w') {
     uint8_t data;
-    data = get8BitValue(7);
+    data  = getNibble(serialBuffer[7]) * (1 << 4);
+    data += getNibble(serialBuffer[8]);
     if (setBufPointer == 10 && serialBuffer[9] == '+') {
       repeatMode = 1;
     }
@@ -677,10 +884,11 @@ void inputOutputPort() {
     if (setBufPointer == 5 || serialBuffer[4] == '+') {
       repeatMode = 1;
     }
-    address = get8BitValue(2);
+    address += getNibble(serialBuffer[2]) * (1 << 4);
+    address += getNibble(serialBuffer[3]);
     dataBusReadMode();
     do {
-      Serial.print("IRD ");
+      Serial.print("IO RD ");
       Serial.print(address, HEX);
       Serial.print(": ");
       Serial.println(inputByte(address), HEX);
@@ -694,12 +902,14 @@ void inputOutputPort() {
       repeatMode = 1;
     }      
     uint8_t data;
-    address = get8BitValue(2);
-    data    = get8BitValue(5);
+    address += getNibble(serialBuffer[2]) * (1 << 4);
+    address += getNibble(serialBuffer[3]);
+    data  = getNibble(serialBuffer[5]) * (1 << 4);
+    data += getNibble(serialBuffer[6]);
     dataBusWriteMode();
     do {
       outputByte(address, data);
-      Serial.print("IWR ");
+      Serial.print("IO WR ");
       Serial.print(address, HEX);
       Serial.print(": ");
       Serial.println(data, HEX);
@@ -728,6 +938,8 @@ void setRepeatRate() {
   if (setBufPointer == 2) {
     byte value = serialBuffer[1] - '0';
     value = (value > 9) ? (value - 7) : value;
+    value = (value > 15) ? (value - 32) : value; // handle lower case
+    Serial.println(value);
     repeatRate = 1 << value;
     Serial.print("Repeat rate set to ");
     Serial.print(repeatRate, DEC);
@@ -743,14 +955,20 @@ byte testRAM() {
   unsigned int endAddress;
   unsigned char value;
   // Ussss eeee
-  startAddress = get16BitValue(1);
-  endAddress   = get16BitValue(6);
+  startAddress  = getNibble(serialBuffer[1]) * (1 << 12);
+  startAddress += getNibble(serialBuffer[2]) * (1 << 8);
+  startAddress += getNibble(serialBuffer[3]) * (1 << 4);
+  startAddress += getNibble(serialBuffer[4]);
+  endAddress  = getNibble(serialBuffer[6]) * (1 << 12);
+  endAddress += getNibble(serialBuffer[7]) * (1 << 8);
+  endAddress += getNibble(serialBuffer[8]) * (1 << 4);
+  endAddress += getNibble(serialBuffer[9]);
   Serial.print("Testing RAM range ");
   Serial.print(startAddress, HEX);
   Serial.print(" - ");
   Serial.println(endAddress, HEX);
   dataBusReadMode();
-  unsigned int i;
+  unsigned long i;
   byte result;
   for (i = startAddress; i <= endAddress; i++) {
     result = memTestDataBus(i);
@@ -770,7 +988,10 @@ void setAddress() {
   // Aaaaa
   uint16_t address;
   bool repeatMode = 0;
-  address  = get16BitValue(1);
+  address  = getNibble(serialBuffer[1]) * (1 << 12);
+  address += getNibble(serialBuffer[2]) * (1 << 8);
+  address += getNibble(serialBuffer[3]) * (1 << 4);
+  address += getNibble(serialBuffer[4]);
 
   unsigned int addressLSB = address & 0xFF;
   unsigned int addressMSB = address >> 8;
@@ -780,25 +1001,12 @@ void setAddress() {
   Serial.println(address,HEX);
 }
 
-unsigned int get16BitValue(byte index) {
-  byte i = index;
-  unsigned address;
-  address  = getNibble(serialBuffer[i++]) * (1 << 12);
-  address += getNibble(serialBuffer[i++]) * (1 << 8);
-  address += getNibble(serialBuffer[i++]) * (1 << 4);
-  address += getNibble(serialBuffer[i++]);
-  return address;
-}
-
-byte get8BitValue(byte index) {
-  byte i = index;
-  byte data;
-  data  = getNibble(serialBuffer[i++]) * (1 << 4);
-  data += getNibble(serialBuffer[i++]);
-  return data;
-}
-
-
+/*
+  Note the RAM test is not very relable if the Arduino write and read cycle is 
+  not syncronised with the machine refresh circuit. This will happen if it relies
+  on the processor clock directly. It should work when the REFRESH signal is used
+  (and enabled).
+*/
 /**********************************************************************
  *
  * Function:    memTestDataBus()
@@ -846,14 +1054,21 @@ byte memTestDataBus(uint16_t address)
 void generateDataRecords() {
   unsigned int startAddress;
   unsigned int endAddress;
-  startAddress = get16BitValue(1);
-  endAddress   = get16BitValue(6);
+  startAddress  = getNibble(serialBuffer[1]) * (1 << 12);
+  startAddress += getNibble(serialBuffer[2]) * (1 << 8);
+  startAddress += getNibble(serialBuffer[3]) * (1 << 4);
+  startAddress += getNibble(serialBuffer[4]);
+  endAddress  = getNibble(serialBuffer[6]) * (1 << 12);
+  endAddress += getNibble(serialBuffer[7]) * (1 << 8);
+  endAddress += getNibble(serialBuffer[8]) * (1 << 4);
+  endAddress += getNibble(serialBuffer[9]);
   printWord(startAddress);
   Serial.print("-");
   printWord(endAddress);
   Serial.println();
 
-  unsigned int i, j;
+  unsigned long i;
+  unsigned int j;
   unsigned char addressMSB, addressLSB, data;
   unsigned char sumCheckCount = 0;
 
@@ -883,4 +1098,200 @@ void generateDataRecords() {
 
 void generateEndRecord() {
   Serial.println(":00000001FF");
+}
+
+void TRS80Test() {  
+  if (serialBuffer[1] == 'D' || serialBuffer[1] == 'd') { // Test TRS-80 Display 
+    TRS80DisplayTest();
+    return;
+  } else if (serialBuffer[1] == 'L' || serialBuffer[1] == 'l') { // Test TRS-80 Keyboard
+    TRS80LCDisplayTest();
+    return;
+  } else if (serialBuffer[1] == 'K' || serialBuffer[1] == 'k') { // Test TRS-80 Keyboard
+    TRS80KeyboardTest();
+    return;
+  } if (serialBuffer[1] == 'C' || serialBuffer[1] == 'c') { // TRS-80 ROM cheksum
+    TRS80ROMChecksum();
+    return;   Serial.println("Not supported");
+  }
+}
+
+unsigned int blockChecksum(unsigned long startAddress, unsigned long endAddress)
+{
+  unsigned long checksum = 0;
+  for (unsigned long i=startAddress; i<=endAddress; i++) {
+    checksum += readByte(i);  
+  }
+  return checksum;
+}
+
+void TRS80ROMChecksum() {
+  unsigned int checksum1 = 0;
+  unsigned int checksum2 = 0;
+  unsigned int checksum3 = 0;
+  int  match = 0;
+  const char *rs[10]= {"Unknown or faulty ROM set",
+                      "TRS-80 v1.0",
+                      "TRS-80 v1.1",
+                      "TRS-80 v1.2", 
+                      "TRS-80 v1.31", 
+                      "TRS-80 v1.32",
+                      "HT-10Z v2.2",
+                      "LNW-80",
+                      "Dick Smith System 80",
+                      "Dick Smith System 80 (Patched)"};
+
+  checksum1 = blockChecksum(0x0000, 0x0fff);
+  checksum2 = blockChecksum(0x1000, 0x1fff);
+  checksum3 = blockChecksum(0x2000, 0x2fff);
+  
+  Serial.print("ROM 1 0000h - 0fffh : ");
+  Serial.println(checksum1, HEX);
+  Serial.print("ROM 2 1000h - 1fffh : ");
+  Serial.println(checksum2, HEX);
+  Serial.print("ROM 3 2000h - 2fffh : ");
+  Serial.println(checksum3, HEX);
+  switch (checksum1) {
+    case 0xAE5D:
+      if (checksum2 == 0xDA84 && checksum3 == 4002) {
+        match = 1;
+      }
+      break;
+    case 0xAE60:
+      if (checksum2 == 0xDA45 && checksum3 == 0x3E3E) {
+        match = 2;
+      }
+      if (checksum2 == 0xDA45 && checksum3 == 0x40BA) {
+        match = 3;
+      }
+      break;
+    case 0xB078:
+      if (checksum2 == 0xDA45 && checksum3 == 0x4006) {
+        match = 4;
+      }
+      break;
+    case 0xAED7:
+      if (checksum2 == 0xDA45 && checksum3 == 0x4006) {
+        match = 5;
+      }
+      break;
+    case 0xC437:
+      if (checksum2 == 0xDA30 && checksum3 == 0x40BA) {
+        match = 6;
+      }
+      break;
+    case 0xAB79:
+      if ((checksum2 == 0xDA45 || checksum2 == 0xDA56) && checksum3 == 0x40BA) {
+        match = 7;
+      }  
+      break;
+    case 0xA94F:
+      if (checksum2 == 0xDA67 && checksum3 == 0x40BA) {
+        match = 8;
+      }
+      break;
+    case 0xA74E:
+      if (checksum2 == 0xDA67 && checksum3 == 0x40BA) {
+        match = 9;
+      }
+      break;
+  }
+  if (match != 0)
+    Serial.print("ROM set identified as ");
+  Serial.println(rs[match]);
+}
+
+void TRS80DisplayTest() {
+    int i, j, address;
+    byte data = 0x00;
+    byte temp;
+    byte readData;
+
+    outputByte(0xff,0);
+    for (j = 0; j < 256; j++) {
+      for (i = 0; i < T_DISP_SIZE; i++) {
+        address = i + T_DISP_START;
+        writeByte(address, data);
+        temp = data;        
+        temp &= 0xBF;
+        readData = readByte(address);
+        readData &= 0xBF;
+        if ( temp != readData) {
+          Serial.print("Read error at location: ");
+          Serial.print(address, HEX);
+          Serial.print("  expected ");
+          Serial.print(temp, HEX);
+          Serial.print("  got ");
+          Serial.println(readData, HEX);
+        }
+        data = ++data; // auto modulo 256
+      }
+      if (stopIt()) break;
+      data++;
+    }
+    Serial.println("Done.");
+}
+
+void TRS80LCDisplayTest() {
+    int i, j, address;
+    byte data = 0x00;
+    byte readData;
+
+    outputByte(0xff,0);
+    for (j = 0; j < 256; j++) {
+      for (i = 0; i < T_DISP_SIZE; i++) {
+        address = i + T_DISP_START;
+        writeByte(address, data);
+        readData = readByte(address);
+        if ( data != readData) {
+          Serial.print("Read error at location: ");
+          Serial.print(address, HEX);
+          Serial.print("  expected ");
+          Serial.print(data, HEX);
+          Serial.print("  got ");
+          Serial.println(readData, HEX);
+        }
+        data = ++data; // auto modulo 256
+      }
+      if (stopIt()) break;
+      data++;
+    }
+    Serial.println("Done.");
+}
+
+void TRS80KeyboardTest() {
+  Serial.println("Press TRS-80 keys...");
+  Serial.println("0 1 2 3 4 5 6 7");
+  byte r1, r2, r3, r4, r5, r6, r7, r8;
+  while(1) {
+    r1 = readByte(T_KEYB_ROW1);
+    r2 = readByte(T_KEYB_ROW2);
+    r3 = readByte(T_KEYB_ROW3);
+    r4 = readByte(T_KEYB_ROW4);
+    r5 = readByte(T_KEYB_ROW5);
+    r6 = readByte(T_KEYB_ROW6);
+    r7 = readByte(T_KEYB_ROW7);
+    r8 = readByte(T_KEYB_ROW8);
+    if (r1 + r2 + r3 + r4 + r5 + r6 + r7 + r8 != 0) {
+      Serial.print(readByte(T_KEYB_ROW1), HEX);
+      Serial.print(" ");
+      Serial.print(readByte(T_KEYB_ROW2), HEX);
+      Serial.print(" ");
+      Serial.print(readByte(T_KEYB_ROW3), HEX);
+      Serial.print(" ");
+      Serial.print(readByte(T_KEYB_ROW4), HEX);
+      Serial.print(" ");
+      Serial.print(readByte(T_KEYB_ROW5), HEX);
+      Serial.print(" ");
+      Serial.print(readByte(T_KEYB_ROW6), HEX);
+      Serial.print(" ");
+      Serial.print(readByte(T_KEYB_ROW7), HEX);
+      Serial.print(" ");
+      Serial.println(readByte(T_KEYB_ROW8), HEX);
+    }
+    delay(500);
+    if (stopIt()) break;
+ 
+  }
+  Serial.println("Done.");
 }
