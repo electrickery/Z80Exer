@@ -1,0 +1,10 @@
+Bus access is intiated by BUSREQ* setting low and wait for BUSACK* to become low.
+
+Control lines tri-stated when BUSACK* is low:
+- A0-A15
+- D0-D7
+- MREQ*, IORQ*, RW*, WR*
+
+M1* is high
+RFSH* is high
+HALT is unchanged
