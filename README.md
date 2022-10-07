@@ -35,4 +35,4 @@ Z80exer command set:
 		
 
 
-The main page is at [Github](https://electrickery.nl/digaud/arduino/Z80exer/)
+The main page is at [here](https://electrickery.nl/digaud/arduino/Z80exer/)
