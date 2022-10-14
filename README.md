@@ -12,8 +12,8 @@ Originally I used an experiment PCB between the Arduino Mega 2560, but with the 
 
 Now the versions I still had in .tgz files are uploaded here in github, and the work of David Mutimer is in a separate branch DMutimer. It should be a clean merge.
 
-
 Z80exer command set:
+
 		-- Z80 exerciser 0.6beta command set --
 		Aaaaa          - set address bus to value aaaa
 		Bpp or B#ss    - blink pin p (in hex) or symbol: A0-AF,D0-D7,RD,WR.MQ,IQ,M1,RF,HT,BK
