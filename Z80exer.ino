@@ -25,7 +25,7 @@ bool refreshMode = 0;
 
 void setup() {
   Serial.begin(9600);
-  Serial.println("Z80exer v0.5beta");
+  Serial.println("Z80exer v0.6beta");
   
   pinMode(LED, OUTPUT);
   
@@ -118,6 +118,10 @@ void commandInterpreter() {
     case 'M':  // memory address read/write
     case 'm':
       readWriteMemory();
+      break; 
+    case 'O':  // Inut port map
+    case 'o':
+      inputPortMap();
       break; 
     case 'P':  // I/O port operations
     case 'p':
@@ -290,6 +294,7 @@ void refreshRow(unsigned int address) {
   digitalWrite(Z80RD,   HIGH);
 }
 
+// Port Read
 unsigned int inputByte(unsigned int address) {
   unsigned int data = 0;
   unsigned int addressLSB = address & 0xFF;
@@ -307,6 +312,7 @@ unsigned int inputByte(unsigned int address) {
   return data; 
 }
 
+// Memory Write
 void writeByte(unsigned int address, unsigned int value) {
   unsigned int addressLSB = address & 0xFF;
   unsigned int addressMSB = address >> 8;
@@ -322,6 +328,7 @@ void writeByte(unsigned int address, unsigned int value) {
   dataBusReadMode();
 }
 
+// Port Write
 void outputByte(unsigned int address, unsigned int value) {
   unsigned int addressLSB = address & 0xFF;
   unsigned int addressMSB = address >> 8;
@@ -349,6 +356,21 @@ void printWord(unsigned int data) {
   printByte(data & 0xFF);
 }
 
+void inputPortMap() {
+  for (int portLine = 0; portLine < 0x100; portLine += 0x10) {
+    Serial.print(leadingZero(portLine));
+    Serial.print(portLine, HEX);
+    Serial.print(": ");
+    for (int p = 0; p < 0x10; p++) {
+      uint8_t data = inputByte(portLine + p);
+      Serial.print(leadingZero(data));
+      Serial.print(data, HEX);
+      Serial.print(" ");
+    }
+    Serial.println();
+  }
+}
+
 void dataBusReadMode() {
   DDRL  = 0x00;  // read mode
 }
@@ -366,6 +388,7 @@ void usage() {
   Serial.println("Issss-eeee     - Generate hex intel data records");
   Serial.println("MRaaaa[+]      - Read memory address aaaa, optionally repeating");
   Serial.println("MWaaaa vv[+]   - Write vv to address aaaa, optionally repeating");
+  Serial.println("O              - Input Port map");
   Serial.println("PRaa[+]        - Read port address [aa]aa, optionally repeating");
   Serial.println("PWaa:vv[+]     - Write vv to address [aa]aa, optionally repeating");
   Serial.println("R[+|-]         - Refresh on/off");
@@ -669,6 +692,12 @@ void readWriteMemory() {
   }
 }
 
+uint8_t readPort(uint8_t port) {
+  dataBusReadMode();
+  uint8_t data = inputByte(port);
+  return data;
+}
+
 void inputOutputPort() {
   // PRaa+, PRaaaa[+], PWaa vv[+], PWaaaa vv[+]
   uint16_t address;
@@ -883,4 +912,11 @@ void generateDataRecords() {
 
 void generateEndRecord() {
   Serial.println(":00000001FF");
+}
+
+String leadingZero(uint8_t value) {
+  if (value < 0x10) {
+    return "0";
+  }
+  return "";
 }
