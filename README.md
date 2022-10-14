@@ -24,7 +24,7 @@ Z80exer command set:
 		MWaaaa vv[+]   - Write vv to address aaaa, optionally repeating
 		PRaa[+]        - Read port address [aa]aa, optionally repeating
 		PWaa:vv[+]     - Write vv to address [aa]aa, optionally repeating
-                O              - Input Port map
+		O              - Input Port map
 		R[+|-]         - Refresh on/off
 		Qn             - Repeat rate; 1, 2, 4, 8, 16, ..., 32678 ms (n=0-9,A-F)
 		Sssss-eeee:vv  - fill a memory range with a value
