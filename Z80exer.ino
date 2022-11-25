@@ -2,7 +2,7 @@
 Z80emu - Z80 pin exorsizer
 */
 
-#define VERSION 0.6
+#define VERSION 0.7
 
 #include "Z80pins.h"
 #include "TRS80maps.h"
