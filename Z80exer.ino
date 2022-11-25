@@ -2,6 +2,8 @@
 Z80emu - Z80 pin exorsizer
 */
 
+#define VERSION 0.6
+
 #include "Z80pins.h"
 #include "TRS80maps.h"
 
@@ -15,7 +17,7 @@ uint16_t repeatRate = 1 < 9;
 #define RECORDSIZE 16
 #define DATARECORDTYPE 0
 
-#define DUMPPAGE 0x0100
+#define DUMPPAGE 0x00FF
 unsigned int lastEndAddress = 0;
 
 unsigned int addressOffset = 0;
@@ -25,7 +27,8 @@ bool refreshMode = 0;
 
 void setup() {
   Serial.begin(9600);
-  Serial.println("Z80exer v0.6beta");
+  Serial.print("Z80exer v");
+  Serial.println(VERSION, 1);
   
   pinMode(LED, OUTPUT);
   
@@ -169,34 +172,50 @@ void commandInterpreter() {
   }
 }
 
-int getNibble(unsigned char myChar) {
-  int nibble = myChar;
-  if (nibble > 'F') nibble -= ' ';  // lower to upper case
-  nibble -= '0';
-  if (nibble > 9) nibble -= 7; // offset 9+1 - A
-  return nibble;
+void usage() {
+  Serial.print("-- Z80 exerciser v");
+  Serial.print(VERSION, 1);
+  Serial.println(" command set --");
+  Serial.println("Aaaaa            - set address bus to value aaaa");
+  Serial.println("Bpp or B#ss      - blink pin p (in hex) or symbol: A0-AF,D0-D7,RD,WR.MQ,IQ,M1,RF,HT,BK");
+  Serial.println("D[ssss[-eeee]|+] - Dump memory from ssss to eeee (default 256 bytes)");
+  Serial.println("H                - This help text");
+  Serial.println("Issss-eeee       - Generate hex intel data records");
+  Serial.println("MRaaaa[+]        - Read memory address aaaa, optionally repeating");
+  Serial.println("MWaaaa vv[+]     - Write vv to address aaaa, optionally repeating");
+  Serial.println("O                - Input Port map");
+  Serial.println("PRaa[+]          - Read port address [aa]aa, optionally repeating");
+  Serial.println("PWaa:vv[+]       - Write vv to address [aa]aa, optionally repeating");
+  Serial.println("R[+|-]           - Refresh on/off");
+  Serial.println("Qn               - Repeat rate; 1, 2, 4, 8, 16, ..., 32678 ms (n=0-9,A-F)");
+  Serial.println("Sssss-eeee:vv    - fill a memory range with a value");
+  Serial.println("Tp               - exercise port p");
+  Serial.println("Ussss-eeee       - test RAM range (walking 1s)");
+  Serial.println("V                - view data bus, pins INT, NMI, WAIT, BUSRQ, RESET");
+  Serial.println("Wpp v or W#ss v  - Write pin (in hex) or symbol: A0-AF,D0-D7,RD,WR.MQ,IQ,M1,RF,HT,BK; values 0, 1");
+  Serial.println("?                - This help text"); 
 }
 
 void dumpMemory() {
   unsigned int startAddress;
   unsigned int endAddress;
   bool repeatMode = 0;
-  if (setBufPointer == 1 ) {
-    startAddress = lastEndAddress;
+  if (setBufPointer == 1 ) { // Automatic mode, dumping next page
+    startAddress   = lastEndAddress == 0 ? 0 : lastEndAddress + 1;
+    endAddress     = startAddress + DUMPPAGE;
     lastEndAddress = endAddress;
-    endAddress = startAddress + DUMPPAGE;
-  } else if (setBufPointer == 2 && serialBuffer[1] == '+') {
-    startAddress = lastEndAddress - DUMPPAGE;
+  } else if (setBufPointer == 2 && serialBuffer[1] == '+') { // continiously reading one page
+    startAddress   = lastEndAddress - DUMPPAGE;
+    endAddress     = startAddress + DUMPPAGE;
     lastEndAddress = endAddress;
-    endAddress = startAddress + DUMPPAGE;
     repeatMode = 1;
-  } else if (setBufPointer == 5) {
-    startAddress = get16BitValue(1);
+  } else if (setBufPointer == 5) { // dumping specified page
+    startAddress   = get16BitValue(1);
+    endAddress     = startAddress + DUMPPAGE;    
     lastEndAddress = endAddress;
-    endAddress = startAddress + DUMPPAGE;
-  } else if (setBufPointer == 10) {
-    startAddress = get16BitValue(1);
-    endAddress = get16BitValue(6);
+  } else if (setBufPointer == 10) { // dumping specified memory range
+    startAddress   = get16BitValue(1);
+    endAddress     = get16BitValue(6);
     lastEndAddress = endAddress;
   } else {
     Serial.println("unsupported"); 
@@ -210,11 +229,11 @@ void dumpMemory() {
     // show range
     printWord(startAddress);
     Serial.print("-");
-    printWord(endAddress - 1);
+    printWord(endAddress);
     Serial.println();
     unsigned int i, data;
     dataBusReadMode();
-    for (i = startAddress; i < endAddress; i++) {
+    for (i = startAddress; i <= endAddress; i++) {
       positionOnLine = i & 0x0F;
       if (positionOnLine == 0) {
         printWord(i);   // Address at start of line
@@ -377,28 +396,6 @@ void dataBusReadMode() {
 
 void dataBusWriteMode() {
   DDRL  = 0xFF;  // write mode
-}
-
-void usage() {
-  Serial.println("-- Z80 exerciser 0.5beta command set --");
-  Serial.println("Aaaaa          - set address bus to value aaaa");
-  Serial.println("Bpp or B#ss    - blink pin p (in hex) or symbol: A0-AF,D0-D7,RD,WR.MQ,IQ,M1,RF,HT,BK");
-  Serial.println("D[ssss[-eeee]|+] - Dump memory from ssss to eeee (default 256 bytes)");
-  Serial.println("H              - This help text");
-  Serial.println("Issss-eeee     - Generate hex intel data records");
-  Serial.println("MRaaaa[+]      - Read memory address aaaa, optionally repeating");
-  Serial.println("MWaaaa vv[+]   - Write vv to address aaaa, optionally repeating");
-  Serial.println("O              - Input Port map");
-  Serial.println("PRaa[+]        - Read port address [aa]aa, optionally repeating");
-  Serial.println("PWaa:vv[+]     - Write vv to address [aa]aa, optionally repeating");
-  Serial.println("R[+|-]         - Refresh on/off");
-  Serial.println("Qn             - Repeat rate; 1, 2, 4, 8, 16, ..., 32678 ms (n=0-9,A-F)");
-  Serial.println("Sssss-eeee:vv  - fill a memory range with a value");
-  Serial.println("Tp             - exercise port p");
-  Serial.println("Ussss-eeee     - test RAM range (walking 1s)");
-  Serial.println("V              - view data bus, pins INT, NMI, WAIT, BUSRQ, RESET");
-  Serial.println("Wpp v or W#ss v - Write pin (in hex) or symbol: A0-AF,D0-D7,RD,WR.MQ,IQ,M1,RF,HT,BK; values 0, 1");
-  Serial.println("?              - This help text"); 
 }
 
 void portTest(byte port) {
@@ -709,7 +706,7 @@ void inputOutputPort() {
     address = get8BitValue(2);
     dataBusReadMode();
     do {
-      Serial.print("IRD ");
+      Serial.print("PR ");
       Serial.print(address, HEX);
       Serial.print(": ");
       Serial.println(inputByte(address), HEX);
@@ -728,7 +725,7 @@ void inputOutputPort() {
     dataBusWriteMode();
     do {
       outputByte(address, data);
-      Serial.print("IWR ");
+      Serial.print("PW ");
       Serial.print(address, HEX);
       Serial.print(": ");
       Serial.println(data, HEX);
@@ -827,6 +824,13 @@ byte get8BitValue(byte index) {
   return data;
 }
 
+int getNibble(unsigned char myChar) {
+  int nibble = myChar;
+  if (nibble > 'F') nibble -= ' ';  // lower to upper case
+  nibble -= '0';
+  if (nibble > 9) nibble -= 7; // offset 9+1 - A
+  return nibble;
+}
 
 /**********************************************************************
  *
