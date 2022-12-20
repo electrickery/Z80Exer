@@ -2,7 +2,7 @@
 Z80emu - Z80 pin exorsizer
 */
 
-#define VERSION 0.7
+#define VERSION 0.8
 
 #include "Z80pins.h"
 #include "TRS80maps.h"
@@ -38,12 +38,13 @@ void setup() {
   pinMode(Z80BUSRQ, INPUT_PULLUP);
   pinMode(Z80RESET, INPUT_PULLUP); 
   
-  DDRA  = 0XFF; // address LSB output
-  DDRC  = 0XFF; // address MSB output
-  PORTK = 0xFF; // control out bits high
-  DDRK  = 0XFF; // control out bits output
-  DDRL  = 0x00; // data bus input
-  PORTL = 0xFF; // data bus pull ups
+//  DDRA  = 0XFF; // address LSB output
+//  DDRC  = 0XFF; // address MSB output
+//  PORTK = 0xFF; // control out bits high
+//  DDRK  = 0XFF; // control out bits output
+//  DDRL  = 0x00; // data bus input
+//  PORTL = 0xFF; // data bus pull ups
+  triState(0); // tri-state off
   
 //  onlineReadMode();
   delay(1000);  
@@ -164,6 +165,14 @@ void commandInterpreter() {
     case 'w':
       writePin();
       break;
+    case 'X':
+    case 'x':
+      if (serialBuffer[1] == '0') {
+        triState(0);
+      } else {
+        triState(1);
+      }
+      break;
     default:
       Serial.print(bufByte);
       Serial.print(" ");
@@ -184,8 +193,8 @@ void usage() {
   Serial.println("MRaaaa[+]        - Read memory address aaaa, optionally repeating");
   Serial.println("MWaaaa vv[+]     - Write vv to address aaaa, optionally repeating");
   Serial.println("O                - Input Port map");
-  Serial.println("PRaa[+]          - Read port address [aa]aa, optionally repeating");
-  Serial.println("PWaa:vv[+]       - Write vv to address [aa]aa, optionally repeating");
+  Serial.println("PRaa[+]          - Read port address aa, optionally repeating");
+  Serial.println("PWaa:vv[+]       - Write vv to address aa, optionally repeating");
   Serial.println("R[+|-]           - Refresh on/off");
   Serial.println("Qn               - Repeat rate; 1, 2, 4, 8, 16, ..., 32678 ms (n=0-9,A-F)");
   Serial.println("Sssss-eeee:vv    - fill a memory range with a value");
@@ -193,6 +202,7 @@ void usage() {
   Serial.println("Ussss-eeee       - test RAM range (walking 1s)");
   Serial.println("V                - view data bus, pins INT, NMI, WAIT, BUSRQ, RESET");
   Serial.println("Wpp v or W#ss v  - Write pin (in hex) or symbol: A0-AF,D0-D7,RD,WR.MQ,IQ,M1,RF,HT,BK; values 0, 1");
+  Serial.println("Xt               - Tri-state all Arduino pins. 0: off, 1: on.");
   Serial.println("?                - This help text"); 
 }
 
@@ -923,4 +933,22 @@ String leadingZero(uint8_t value) {
     return "0";
   }
   return "";
+}
+
+void triState(uint8_t on) { // tri-state on: disconnect from Z80 socket
+    if (on) {
+        DDRA  = 0x00; // address LSB 
+        DDRC  = 0x00; // address MSB 
+        PORTK = 0x00; // control out bits pull ups off
+        DDRK  = 0x00; // control out bits 
+        DDRL  = 0x00; // data bus input
+        PORTL = 0x00; // data bus pull ups off
+    } else {
+        DDRA  = 0xFF; // address LSB output
+        DDRC  = 0xFF; // address MSB output
+        PORTK = 0xFF; // control out bits high
+        DDRK  = 0xFF; // control out bits output
+        DDRL  = 0x00; // data bus input
+        PORTL = 0xFF; // data bus pull ups
+    }
 }
