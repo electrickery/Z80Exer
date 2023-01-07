@@ -1,4 +1,4 @@
-**Z80Exer - an Arduino based Z80 board exercizer
+## Z80Exer - an Arduino based Z80 board exercizer
 
 A long time ago (well 2014), I developed the original Z80Exersizer, to be able to check Z80 based boards from the Z80 CPU
 socket. It worked good enough and I announced this on the VCF-forum (then called vintagecomputer.org). Eventually I added 
@@ -13,7 +13,8 @@ somewhat more optimized. The board is alas still not completely debugged.
 
 ![Z80 exer shields; prototype and first PBC version](shields.jpg)
 
-Now the versions I still had in .tgz files are uploaded here in github, and the work of David Mutimer is in a separate branch DMutimer. It should be a clean merge.
+Now the versions I still had in .tgz files are uploaded here in github, and the work of David Mutimer is in a separate 
+branch DMutimer. It should be a clean merge, but I do not use the TRS-80 bus mode.
 
 Z80exer command set:
 
