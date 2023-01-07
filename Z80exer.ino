@@ -106,6 +106,10 @@ void commandInterpreter() {
     case 'b':
       blinkPin();
       break;
+    case 'C':
+    case 'c':
+      calcChecksum();
+      break;
     case 'D':  // dump memory
     case 'd':
       dumpMemory();
@@ -202,6 +206,7 @@ void usage() {
   Serial.println("Wpp v or W#ss v  - Write pin (in hex) or symbol: A0-AF,D0-D7,RD,WR.MQ,IQ,M1,RF,HT,BK; values 0, 1");
   Serial.println("Xt               - Tri-state all Arduino pins. 0: off, 1: on.");
   Serial.println(" -- operational command set --");
+  Serial.println("Cssss-eeee       - Calculate checksum over a range");
   Serial.println("D[ssss[-eeee]|+] - Dump memory from ssss to eeee (default 256 bytes)");
   Serial.println("Issss-eeee       - Generate hex intel data records");
   Serial.println("O                - Input Port map");
@@ -961,4 +966,36 @@ void triState(uint8_t on) { // tri-state on: disconnect from Z80 socket
         DDRL  = 0x00; // data bus input
         PORTL = 0xFF; // data bus pull ups
     }
+}
+
+void calcChecksum() {
+  unsigned int startAddress;
+  unsigned int endAddress;
+  unsigned char value;
+  // Cssss eeee
+  startAddress = get16BitValue(1);
+  endAddress   = get16BitValue(6);
+
+  Serial.print("Checksum block ");
+  Serial.print(startAddress, HEX);
+  Serial.print("h - ");
+  Serial.print(endAddress, HEX);
+  Serial.print("h : ");
+  dataBusReadMode();
+  unsigned long checkSum = blockChecksum(startAddress,endAddress);
+  Serial.print(checkSum, HEX);
+  Serial.print("h, ");
+  Serial.print(checkSum, DEC);
+  Serial.print(", ");
+  Serial.print(checkSum & 0xFF, DEC);
+  Serial.println();
+}
+
+unsigned int blockChecksum(unsigned long startAddress, unsigned long endAddress)
+{
+  unsigned long checksum = 0;
+  for (unsigned long i=startAddress; i<=endAddress; i++) {
+    checksum += readByte(i);  
+  }
+  return checksum;
 }
