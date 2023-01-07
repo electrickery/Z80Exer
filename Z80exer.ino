@@ -23,6 +23,8 @@ unsigned int lastEndAddress = 0;
 unsigned int addressOffset = 0;
 bool refreshMode = 0;
 
+bool echo = 0;
+
 // core routines
 
 void setup() {
@@ -70,16 +72,16 @@ void clearSerialBuffer() {
 void commandCollector() {
   if (Serial.available() > 0) {
     int inByte = Serial.read();
+    if (echo) Serial.write(inByte);
     switch(inByte) {
     case '.':
-//    case '\r':
+    case '\r':
     case '\n':
+      if (echo) Serial.println();
       commandInterpreter();
       clearSerialBuffer();
       setBufPointer = 0;
       break;
-    case '\r':
-      break;  // ignore carriage return
     default:
       serialBuffer[setBufPointer] = inByte;
       setBufPointer++;
@@ -107,6 +109,10 @@ void commandInterpreter() {
     case 'D':  // dump memory
     case 'd':
       dumpMemory();
+      break;
+    case 'E':  // toggle echo
+    case 'e':
+      echo = !echo;
       break;
     case 'H':  // help
     case 'h':
@@ -183,32 +189,35 @@ void commandInterpreter() {
 
 void usage() {
   Serial.print("-- Z80 exerciser v");
-  Serial.print(VERSION, 1);
-  Serial.println(" command set --");
+  Serial.println(VERSION, 1);
+  Serial.println(" -- debugging command set --");
   Serial.println("Aaaaa            - set address bus to value aaaa");
   Serial.println("Bpp or B#ss      - blink pin p (in hex) or symbol: A0-AF,D0-D7,RD,WR.MQ,IQ,M1,RF,HT,BK");
-  Serial.println("D[ssss[-eeee]|+] - Dump memory from ssss to eeee (default 256 bytes)");
-  Serial.println("H                - This help text");
-  Serial.println("Issss-eeee       - Generate hex intel data records");
   Serial.println("MRaaaa[+]        - Read memory address aaaa, optionally repeating");
   Serial.println("MWaaaa vv[+]     - Write vv to address aaaa, optionally repeating");
-  Serial.println("O                - Input Port map");
   Serial.println("PRaa[+]          - Read port address aa, optionally repeating");
   Serial.println("PWaa:vv[+]       - Write vv to address aa, optionally repeating");
-  Serial.println("R[+|-]           - Refresh on/off");
-  Serial.println("Qn               - Repeat rate; 1, 2, 4, 8, 16, ..., 32678 ms (n=0-9,A-F)");
-  Serial.println("Sssss-eeee:vv    - fill a memory range with a value");
-  Serial.println("Tp               - exercise port p");
-  Serial.println("Ussss-eeee       - test RAM range (walking 1s)");
+  Serial.println("Tp               - exercise Arduino port p: ACDHKL");
   Serial.println("V                - view data bus, pins INT, NMI, WAIT, BUSRQ, RESET");
   Serial.println("Wpp v or W#ss v  - Write pin (in hex) or symbol: A0-AF,D0-D7,RD,WR.MQ,IQ,M1,RF,HT,BK; values 0, 1");
   Serial.println("Xt               - Tri-state all Arduino pins. 0: off, 1: on.");
+  Serial.println(" -- operational command set --");
+  Serial.println("D[ssss[-eeee]|+] - Dump memory from ssss to eeee (default 256 bytes)");
+  Serial.println("Issss-eeee       - Generate hex intel data records");
+  Serial.println("O                - Input Port map");
+  Serial.println("Sssss-eeee:vv    - fill memory range with a value");
+  Serial.println("Ussss-eeee       - test RAM range (walking 1s)");
+  Serial.println(" -- misc. command set --");
+  Serial.println("E                - Toggle echo");
+  Serial.println("H                - This help text");
+  Serial.println("R[+|-]           - Refresh on/off");
+  Serial.println("Qn               - Repeat rate; 1, 2, 4, 8, 16, ..., 32678 ms (n=0-9,A-F)");
   Serial.println("?                - This help text"); 
 }
 
 void dumpMemory() {
-  unsigned int startAddress;
-  unsigned int endAddress;
+  unsigned long startAddress;
+  unsigned long endAddress;
   bool repeatMode = 0;
   if (setBufPointer == 1 ) { // Automatic mode, dumping next page
     startAddress   = lastEndAddress == 0 ? 0 : lastEndAddress + 1;
@@ -241,7 +250,8 @@ void dumpMemory() {
     Serial.print("-");
     printWord(endAddress);
     Serial.println();
-    unsigned int i, data;
+    unsigned long i;
+    unsigned int data;
     dataBusReadMode();
     for (i = startAddress; i <= endAddress; i++) {
       positionOnLine = i & 0x0F;
