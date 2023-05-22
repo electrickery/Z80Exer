@@ -1,5 +1,5 @@
 /*
-Z80emu - Z80 pin exorsizer
+Z80emu - Z80 pin exersizer
 */
 
 #define VERSION 0.8
@@ -86,7 +86,7 @@ void commandCollector() {
       serialBuffer[setBufPointer] = inByte;
       setBufPointer++;
       if (setBufPointer >= SERIALBUFSIZE) {
-        Serial.println("Serial buffer overflow. Cleanup.");
+        Serial.println(F("Serial buffer overflow. Cleanup."));
         clearSerialBuffer();
         setBufPointer = 0;
       }
@@ -192,32 +192,32 @@ void commandInterpreter() {
 }
 
 void usage() {
-  Serial.print("-- Z80 exerciser v");
+  Serial.print(F("-- Z80 exerciser v"));
   Serial.println(VERSION, 1);
-  Serial.println(" -- debugging command set --");
-  Serial.println("Aaaaa            - set address bus to value aaaa");
-  Serial.println("Bpp or B#ss      - blink pin p (in hex) or symbol: A0-AF,D0-D7,RD,WR.MQ,IQ,M1,RF,HT,BK");
-  Serial.println("MRaaaa[+]        - Read memory address aaaa, optionally repeating");
-  Serial.println("MWaaaa vv[+]     - Write vv to address aaaa, optionally repeating");
-  Serial.println("PRaa[+]          - Read port address aa, optionally repeating");
-  Serial.println("PWaa:vv[+]       - Write vv to address aa, optionally repeating");
-  Serial.println("Tp               - exercise Arduino port p: ACDHKL");
-  Serial.println("V                - view data bus, pins INT, NMI, WAIT, BUSRQ, RESET");
-  Serial.println("Wpp v or W#ss v  - Write pin (in hex) or symbol: A0-AF,D0-D7,RD,WR.MQ,IQ,M1,RF,HT,BK; values 0, 1");
-  Serial.println("Xt               - Tri-state all Arduino pins. 0: off, 1: on.");
-  Serial.println(" -- operational command set --");
-  Serial.println("Cssss-eeee       - Calculate checksum over a range");
-  Serial.println("D[ssss[-eeee]|+] - Dump memory from ssss to eeee (default 256 bytes)");
-  Serial.println("Issss-eeee       - Generate hex intel data records");
-  Serial.println("O                - Input Port map");
-  Serial.println("Sssss-eeee:vv    - fill memory range with a value");
-  Serial.println("Ussss-eeee       - test RAM range (walking 1s)");
-  Serial.println(" -- misc. command set --");
-  Serial.println("E                - Toggle echo");
-  Serial.println("H                - This help text");
-  Serial.println("R[+|-]           - Refresh on/off");
-  Serial.println("Qn               - Repeat rate; 1, 2, 4, 8, 16, ..., 32678 ms (n=0-9,A-F)");
-  Serial.println("?                - This help text"); 
+  Serial.println(F(" -- debugging command set --"));
+  Serial.println(F("Aaaaa            - set address bus to value aaaa"));
+  Serial.println(F("Bpp or B#ss      - blink pin p (in hex) or symbol: A0-AF,D0-D7,RD,WR.MQ,IQ,M1,RF,HT,BK"));
+  Serial.println(F("MRaaaa[+]        - Read memory address aaaa, optionally repeating"));
+  Serial.println(F("MWaaaa vv[+]     - Write vv to address aaaa, optionally repeating"));
+  Serial.println(F("PRaa[+]          - Read port address aa, optionally repeating"));
+  Serial.println(F("PWaa:vv[+]       - Write vv to address aa, optionally repeating"));
+  Serial.println(F("Tp               - exercise Arduino port p: ACDHKL"));
+  Serial.println(F("V                - view data bus, pins INT, NMI, WAIT, BUSRQ, RESET"));
+  Serial.println(F("Wpp v or W#ss v  - Write pin (in hex) or symbol: A0-AF,D0-D7,RD,WR.MQ,IQ,M1,RF,HT,BK; values 0, 1"));
+  Serial.println(F("Xt               - Tri-state all Arduino pins. 0: off, 1: on."));
+  Serial.println(F(" -- operational command set --"));
+  Serial.println(F("Cssss-eeee       - Calculate checksum over a range"));
+  Serial.println(F("D[ssss[-eeee]|+] - Dump memory from ssss to eeee (default 256 bytes)"));
+  Serial.println(F("Issss-eeee       - Generate hex intel data records"));
+  Serial.println(F("O                - Input Port map"));
+  Serial.println(F("Sssss-eeee:vv    - fill memory range with a value"));
+  Serial.println(F("Ussss-eeee       - test RAM range (walking 1s)"));
+  Serial.println(F(" -- misc. command set --"));
+  Serial.println(F("E                - Toggle echo"));
+  Serial.println(F("H                - This help text"));
+  Serial.println(F("R[+|-]           - Refresh on/off"));
+  Serial.println(F("Qn               - Repeat rate; 1, 2, 4, 8, 16, ..., 32678 ms (n=0-9,A-F)"));
+  Serial.println(F("?                - This help text")); 
 }
 
 void dumpMemory() {
@@ -428,7 +428,7 @@ void portTest(byte port) {
   switch(port) {
     case 'A':
     case 'a':
-      Serial.println("Testing PORTA");
+      Serial.println(F("Testing PORTA"));
       PORTA = 0xFF;
       DDRA  = 0xFF;
       while (1) {
@@ -442,7 +442,7 @@ void portTest(byte port) {
     break; 
     case 'C':
     case 'c':
-      Serial.println("Testing PORTC");
+      Serial.println(F("Testing PORTC"));
       PORTC = 0xFF;
       DDRC  = 0xFF;
       while (1) {
@@ -456,7 +456,7 @@ void portTest(byte port) {
     break;
     case 'D':
     case 'd':
-      Serial.println("Testing PORTD");
+      Serial.println(F("Testing PORTD"));
       PORTD = 0xFF;
       DDRD  = 0xFF;
       while(1) {
@@ -470,7 +470,7 @@ void portTest(byte port) {
     break;
     case 'L':
     case 'l':    
-      Serial.println("Testing PORTL");
+      Serial.println(F("Testing PORTL"));
       PORTL = 0xFF;
       DDRL  = 0xFF;
       while(1) {
@@ -484,7 +484,7 @@ void portTest(byte port) {
     break;
     case 'H':
     case 'h':
-      Serial.println("Testing PORTH");
+      Serial.println(F("Testing PORTH"));
       PORTH = 0xFF;
       DDRH  = 0xFF;
       while(1) {
@@ -498,7 +498,7 @@ void portTest(byte port) {
     break;
     case 'K':
     case 'k':
-      Serial.println("Testing PORTK");
+      Serial.println(F("Testing PORTK"));
       PORTK = 0xFF;
       DDRK  = 0xFF;
       while(1) {
@@ -511,7 +511,7 @@ void portTest(byte port) {
       }
     break;
     default:
-    Serial.println("Unknown PORT");
+    Serial.println(F("Unknown PORT"));
     return;
    }
 }
@@ -561,7 +561,7 @@ void setValue() {
 }
 
 void viewPorts() {
-  Serial.println("  Data   IN NM WT BK RT");
+  Serial.println(F("  Data   IN NM WT BK RT"));
   while(1) {
     printBin(PINL);
     Serial.print("  ");
@@ -681,9 +681,12 @@ void readWriteMemory() {
     dataBusReadMode();
     do {
       Serial.print("MRD ");
+      addZeroes(address);
       Serial.print(address, HEX);
       Serial.print(": ");
-      Serial.println(readByte(address), HEX);
+      uint8_t byte = readByte(address);
+      if (byte < 0x10) Serial.print("0");
+      Serial.println(byte, HEX);
       if (stopIt()) {
         return;
       }
@@ -698,8 +701,10 @@ void readWriteMemory() {
     dataBusWriteMode();
     do {
       Serial.print("MWR ");
+      addZeroes(address);
       Serial.print(address, HEX);
       Serial.print(": ");
+      if (data < 0x10) Serial.print("0");
       Serial.println(data, HEX);
       writeByte(address, data);
       if (stopIt()) {
@@ -732,9 +737,12 @@ void inputOutputPort() {
     dataBusReadMode();
     do {
       Serial.print("PR ");
+      if (address < 0x10) Serial.print("0");
       Serial.print(address, HEX);
       Serial.print(": ");
-      Serial.println(inputByte(address), HEX);
+      uint8_t byte = inputByte(address);
+      if (byte < 0x10) Serial.print("0");
+      Serial.println(byte, HEX);
       if (stopIt()) {
         return;
       }
@@ -751,8 +759,10 @@ void inputOutputPort() {
     do {
       outputByte(address, data);
       Serial.print("PW ");
+      if (address < 0x10) Serial.print("0");
       Serial.print(address, HEX);
       Serial.print(": ");
+      if (data < 0x10) Serial.print("0");
       Serial.println(data, HEX);
       if (stopIt()) {
         return;
@@ -780,12 +790,12 @@ void setRepeatRate() {
     byte value = serialBuffer[1] - '0';
     value = (value > 9) ? (value - 7) : value;
     repeatRate = 1 << value;
-    Serial.print("Repeat rate set to ");
+    Serial.print(F("Repeat rate set to "));
     Serial.print(repeatRate, DEC);
     Serial.println(" ms");
     
   } else {
-    Serial.println("not supported");
+    Serial.println(F("not supported"));
   }
 }
 
@@ -982,12 +992,15 @@ void calcChecksum() {
   Serial.print(endAddress, HEX);
   Serial.print("h : ");
   dataBusReadMode();
-  unsigned long checkSum = blockChecksum(startAddress,endAddress);
+  unsigned long checkSum = blockChecksum(startAddress, endAddress);
+  uint8_t andOrChecksum = andOrDiff(startAddress, endAddress);
   Serial.print(checkSum, HEX);
   Serial.print("h, ");
   Serial.print(checkSum, DEC);
   Serial.print(", ");
   Serial.print(checkSum & 0xFF, DEC);
+  Serial.print(", and/or: ");
+  Serial.print(andOrChecksum, DEC);  
   Serial.println();
 }
 
@@ -998,4 +1011,20 @@ unsigned int blockChecksum(unsigned long startAddress, unsigned long endAddress)
     checksum += readByte(i);  
   }
   return checksum;
+}
+
+uint8_t andOrDiff(unsigned long startAddress, unsigned long endAddress)
+{
+  uint8_t checksum = 0;
+  for (unsigned long i=startAddress; i<=endAddress; i++) {
+    checksum = (readByte(i) & checksum) - (readByte(i) | checksum); //  P = (Q OR P) - (Q AND P)
+  }
+  return checksum;
+}
+
+void addZeroes(uint16_t addr) {
+  if (addr < 0x1000) Serial.print("0");
+  if (addr < 0x100) Serial.print("0");
+  if (addr < 0x10) Serial.print("0");
+  return;
 }
