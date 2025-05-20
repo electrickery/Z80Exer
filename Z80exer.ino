@@ -2,7 +2,7 @@
 Z80emu - Z80 pin exersizer
 */
 
-#define VERSION 0.8
+#define VERSION 0.9
 
 #include "Z80pins.h"
 #include "TRS80maps.h"
@@ -749,7 +749,7 @@ void inputOutputPort() {
       delay(repeatRate);  
     } while (repeatMode);
   } else if (serialBuffer[1] == 'W' || serialBuffer[1] == 'w') {
-    if (setBufPointer == 8 || serialBuffer[7] == '+') {
+    if (setBufPointer == 5 || serialBuffer[4] == '+') {
       repeatMode = 1;
     }      
     uint8_t data;
